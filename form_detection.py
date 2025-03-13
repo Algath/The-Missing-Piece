@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 file_name = "pieces_puzzle_multiple"
 
@@ -22,5 +23,15 @@ for cnt in contours:
     cv2.drawContours(img, [approx], 0, (0, 255, 0), 2)
     cv2.imwrite(f"Output\\{file_name}_detection.jpg", img)
 
-cv2.imshow("Image", img)
-cv2.waitKey(0)
+img_original = cv2.imread(f"Image\\{file_name}.jpg")
+img_original = cv2.resize(img_original, (800, 800))
+titles = ["Original Image", "Binary Image", "Detected Form"]
+images = [img_original, thresh, img]
+
+for i in range(len(images)):
+    plt.subplot(1, 3, i + 1)
+    plt.imshow(images[i], "gray")
+    plt.title(titles[i])
+    plt.xticks([]), plt.yticks([])
+
+plt.show()
