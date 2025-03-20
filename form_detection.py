@@ -20,6 +20,18 @@ analysis = cv2.connectedComponentsWithStats(thresh, 4, cv2.CV_32S)
 output = np.zeros(gray.shape, dtype="uint8")
 contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
+
+def HarrisCornerDetection():
+    gray_32 = np.float32(gray)
+    dst = cv2.cornerHarris(gray, 5, 5, 0.04)
+    dst = cv2.dilate(dst, None)
+
+    img[dst > 0.01 * dst.max()] = [0, 0, 255]
+
+    cv2.imshow("Image", img)
+    cv2.waitKey(0)
+
+
 for i in range(1, numLabels):
     area = stats[i, cv2.CC_STAT_AREA]
 
@@ -74,3 +86,5 @@ for i in range(len(images)):
     plt.xticks([]), plt.yticks([])
 
 plt.show()
+
+HarrisCornerDetection()
