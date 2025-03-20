@@ -266,17 +266,6 @@ def corner_filter(xy, d_threshold=30, perp_angle_thresh=30, verbose=0):
     best_fitting_idxs = possible_rectangles[np.argmax(scores)]
     return xy[best_fitting_idxs]
 
-
-corner_detection, yx = HarrisCornerDetection(img.copy())
-print()
-
-intersections = corner_filter(yx)
-
-if intersections is None:
-    raise RuntimeError("No rectangle found")
-
-
-def corner_filter(xy, d_threshold=30, perp_angle_thresh=30, verbose=0):
     N = len(xy)
 
     dist = scipy.spatial.distance.cdist(xy, xy)
@@ -439,8 +428,6 @@ def corner_filter(xy, d_threshold=30, perp_angle_thresh=30, verbose=0):
 
 
 corner_detection, yx = HarrisCornerDetection(img.copy())
-print()
-
 intersections = corner_filter(yx)
 
 if intersections is None:
@@ -454,7 +441,7 @@ titles = [
     "Filtered Components",
     "Corner Detection",
 ]
-images = [img, thresh, detected_img, output]
+images = [img, thresh, detected_img, output, corner_detection]
 
 display_images(images, titles)
 HarrisCornerDetection(gray, img)
