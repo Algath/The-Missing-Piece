@@ -78,8 +78,8 @@ def HarrisCornerDetection(image):
     gray_32 = np.float32(gray)
     dst = cv2.cornerHarris(gray_32, 5, 5, 0.04)
     dst = cv2.dilate(dst, None)
-    image[dst > 0.1 * dst.max()] = [255, 0, 0]
-    coords = np.argwhere(dst > 0.1 * dst.max())
+    image[dst > 0.06 * dst.max()] = [255, 0, 0]
+    coords = np.argwhere(dst > 0.06 * dst.max())
     yx = coords[:, ::-1]
     """ data = dst.copy()
      data[data < 0.3 * dst.max()] = 0
@@ -112,166 +112,251 @@ def point_filter(xy, pt1, pt2, image):
     return image, internal_points, external_points
 
 
-def corner_filter(xy, d_threshold=30, perp_angle_thresh=30, verbose=0):
-    N = len(xy)
+def corner_filter(xy, d_threshold=30, angle_thresh=30, verbose=0):
+    """Efficiently detect rectangular shapes among points using vectorized operations.
 
-    dist = scipy.spatial.distance.cdist(xy, xy)
-    dist[dist < d_threshold] = 0
-    # print(dist[dist < d_threshold])
+    Parameters:
+    - xy: List or array of points to analyze
+    - d_threshold: Minimum distance between points
+    - angle_thresh: Threshold for angle deviation
+    - verbose: Verbosity level for debugging
 
-    def calculate_angle(xy):
-        angles = np.zeros((N, N))
+    Returns:
+    - Best fitting rectangle points or None"""
 
-        for i in range(N):
-            for j in range(i + 1, N):
-                point_i, point_j = xy[i], xy[j]
-                if point_i[0] == point_j[0]:
-                    angle = 90
-                else:
-                    angle = (
-                        np.arctan2(point_j[1] - point_i[1], point_j[0] - point_i[0])
-                        * 180
-                        / np.pi
-                    )
+    # Convert to numpy array and ensure 2D
+    xy = np.asarray(xy)
 
-                angles[i, j] = angle
-                angles[j, i] = angle
-        return angles
-
-    angles = calculate_angle(xy)
-    possible_rectangles = []
-
-    def check_possible_rectangle(idx, prev_points=[], dist=dist, angles=angles):
-        curr_point = xy[idx]
-        depth = len(prev_points)
-
-        if depth == 0:
-            right_points_idx = np.nonzero(
-                np.logical_and(xy[:, 0] > curr_point[0], dist[idx] > 0)
-            )[0]
-
-            if verbose >= 2:
-                print("point", idx, curr_point)
-
-            for right_point_idx in right_points_idx:
-                check_possible_rectangle(right_point_idx, [idx])
-
-            if verbose >= 2:
-                print("---")
-            return
-
-        last_angle = angles[idx, prev_points[-1]]
-        perp_angle = last_angle - 90
-        if perp_angle < 0:
-            perp_angle += 180
-
-        if depth in (1, 2):
-            if verbose >= 2:
-                print(
-                    "\t" * depth,
-                    "point",
-                    idx,
-                    curr_point,
-                    "angle",
-                    last_angle,
-                    "perp",
-                    perp_angle,
-                )
-            diff0 = np.abs(angles[idx] - perp_angle) <= perp_angle_thresh
-            diff180_0 = np.abs(angles[idx] - (perp_angle + 180)) <= perp_angle_thresh
-            diff180_1 = np.abs(angles[idx] - (perp_angle - 180)) <= perp_angle_thresh
-            all_diffs = np.logical_or(diff0, np.logical_or(diff180_0, diff180_1))
-
-            diff_to_explore = np.nonzero(np.logical_and(all_diffs, dist[idx] > 0))[0]
-
-            if verbose >= 2:
-                print(
-                    "\t" * depth,
-                    "diff0:",
-                    np.nonzero(diff0)[0],
-                    "diff180:",
-                    np.nonzero(diff180_0)[0],
-                    "diff_to_explore:",
-                    diff_to_explore,
-                )
-
-            for dte_idx in diff_to_explore:
-                if (
-                    dte_idx not in prev_points
-                ):  # unlickly to happen but just to be certain
-                    next_points = prev_points[::]
-                    next_points.append(idx)
-
-                    check_possible_rectangle(dte_idx, next_points)
-
-        if depth == 3:
-            angle41 = angles[idx, prev_points[0]]
-
-            diff0 = np.abs(angle41 - perp_angle) <= perp_angle_thresh
-            diff180_0 = np.abs(angle41 - (perp_angle + 180)) <= perp_angle_thresh
-            diff180_1 = np.abs(angle41 - (perp_angle - 180)) <= perp_angle_thresh
-            dist = dist[idx, prev_points[0]] > 0
-
-            if dist and (diff0 or diff180_0 or diff180_1):
-                rect_points = prev_points[::]
-                rect_points.append(idx)
-
-                if verbose == 2:
-                    print("We have a rectangle:", rect_points)
-
-                already_present = False
-                for possible_rectangle in possible_rectangles:
-                    if set(possible_rectangle) == set(rect_points):
-                        already_present = True
-                        break
-
-                if not already_present:
-                    possible_rectangles.append(rect_points)
-
-    if verbose >= 2:
-        print("Coords")
-        print(xy)
-        print
-        print("Distances")
-        print(dist)
-        print
-        print("Angles")
-        print(angles)
-        print
-
-    for i in range(N):
-        check_possible_rectangle(i)
-
-    if len(possible_rectangles) == 0:
+    # Quick exit conditions
+    if len(xy) < 4:
         return None
 
-    def PolyArea(x, y):
-        return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+    # Compute pairwise distances efficiently
+    dist_matrix = scipy.spatial.distance_matrix(xy, xy)
 
-    areas = []
-    rectangularness = []
-    diff_angles = []
+    # Compute angle matrix more efficiently
+    def fast_angle_matrix(points):
+        """Compute angle matrix using vectorized operations."""
+        dx = points[:, 0][:, np.newaxis] - points[:, 0]
+        dy = points[:, 1][:, np.newaxis] - points[:, 1]
 
-    for r in possible_rectangles:
-        points = xy[r]
-        areas.append(PolyArea(points[:, 0], points[:, 1]))
+        # Use numpy's arctan2 for efficient angle calculation
+        angles = np.arctan2(dy, dx) * 180 / np.pi
+        return np.abs(angles)
 
-        mse = 0
-        da = []
-        for i1, i2, i3 in [(0, 1, 2), (1, 2, 3), (2, 3, 0), (3, 0, 1)]:
-            diff_angle = abs(angles[r[i1], r[i2]] - angles[r[i2], r[i3]])
-            da.append(abs(diff_angle - 90))
-            mse += (diff_angle - 90) ** 2
+    angle_matrix = fast_angle_matrix(xy)
 
-        diff_angles.append(da)
-        rectangularness.append(mse)
+    def is_perpendicular(angle1, angle2, thresh=angle_thresh):
+        """Check if two angles are close to perpendicular."""
+        # Compute the absolute angular difference
+        diff = np.abs(np.abs(angle1 - angle2) - 90)
+        return diff <= thresh
 
-    areas = np.array(areas)
-    rectangularness = np.array(rectangularness)
+    def find_rectangles():
+        """Find potential rectangles using efficient search."""
+        rectangles = []
 
-    scores = areas * scipy.stats.norm(0, 150).pdf(rectangularness)
-    best_fitting_idxs = possible_rectangles[np.argmax(scores)]
-    return xy[best_fitting_idxs]
+        # Prune distance matrix to only close points
+        close_mask = (dist_matrix > 0) & (
+            dist_matrix < d_threshold * 3
+        )  # Limit search space
+
+        for i in range(len(xy)):
+            # Find potential first points
+            first_points = np.where(close_mask[i])[0]
+
+            for j in first_points:
+                if j <= i:
+                    continue
+
+                # Find points forming first side
+                side1 = dist_matrix[i, j]
+
+                # Iterate through potential perpendicular points
+                for k in first_points:
+                    if k <= j:
+                        continue
+
+                    # Check if points form a close to perpendicular angle
+                    if is_perpendicular(angle_matrix[i, j], angle_matrix[j, k]):
+                        # Check third point is far enough
+                        side2 = dist_matrix[j, k]
+
+                        # Find fourth point to close rectangle
+                        for l in first_points:
+                            if l <= k:
+                                continue
+
+                            # Check if points form a rectangle
+                            if (
+                                is_perpendicular(angle_matrix[j, k], angle_matrix[k, l])
+                                and np.abs(dist_matrix[k, l] - side1) < side1 * 0.2
+                                and dist_matrix[l, i] > 0
+                            ):
+                                rectangle = [i, j, k, l]
+                                rectangles.append(rectangle)
+
+        return rectangles
+
+    def score_rectangles(rectangles):
+        """Score rectangles based on area and shape."""
+        if not rectangles:
+            return None
+
+        def polygon_area(rectangle):
+            """Compute polygon area using shoelace formula."""
+            points = xy[rectangle]
+            x = points[:, 0]
+            y = points[:, 1]
+            return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+
+        def rectangularness(rectangle):
+            """Compute how close the shape is to a perfect rectangle."""
+            points = xy[rectangle]
+            angles = np.abs(
+                np.diff(
+                    np.arctan2(
+                        np.diff(points[:, 1], append=points[0, 1]),
+                        np.diff(points[:, 0], append=points[0, 0]),
+                    )
+                )
+                * 180
+                / np.pi
+            )
+            return np.mean(np.abs(angles - 90))
+
+        # Compute scores
+        areas = np.array([polygon_area(rect) for rect in rectangles])
+        rectangularness_scores = np.array(
+            [rectangularness(rect) for rect in rectangles]
+        )
+
+        # Combined scoring
+        scores = areas / (rectangularness_scores + 1e-5)
+        best_idx = np.argmax(scores)
+
+        return xy[rectangles[best_idx]]
+
+    # Main processing
+    potential_rectangles = find_rectangles()
+    best_rectangle = score_rectangles(potential_rectangles)
+
+    return best_rectangle
+
+
+def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
+    """
+    Preserve and combine points from multiple detection methods.
+
+    Parameters:
+    - img: Original image
+    - gray: Grayscale image
+    - thresh: Thresholded binary image
+    - connected_analysis: Result from cv2.connectedComponentsWithStats()
+    - yx: Corner points from Harris detection
+
+    Returns:
+    - Comprehensive set of preserved points
+    - Visualization of preserved points
+    """
+    # Unpack connected component analysis
+    numLabels, labels, stats, centroids = connected_analysis
+
+    # Create a copy of the image for visualization
+    preserved_img = img.copy()
+
+    # Collect points from different methods
+    all_points = []
+
+    # 1. Centroids from connected components
+    for i in range(1, numLabels):  # Skip background (index 0)
+        area = stats[i, cv2.CC_STAT_AREA]
+        if area > 1000:  # Filter small components
+            centroid = centroids[i]
+            all_points.append(
+                {
+                    "point": (int(centroid[0]), int(centroid[1])),
+                    "type": "centroid",
+                    "color": (255, 0, 0),  # Blue
+                }
+            )
+
+    # 2. Harris Corner Detection Points
+    for point in yx:
+        point_coords = (int(point[0]), int(point[1]))
+        all_points.append(
+            {
+                "point": point_coords,
+                "type": "harris_corner",
+                "color": (0, 255, 0),  # Green
+            }
+        )
+
+    # 3. Contour Extreme Points
+    contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    for cnt in contours:
+        # Extract extreme points
+        if len(cnt) > 0:
+            extreme_points = [
+                tuple(cnt[cnt[:, :, 0].argmin()][0]),  # Leftmost
+                tuple(cnt[cnt[:, :, 0].argmax()][0]),  # Rightmost
+                tuple(cnt[cnt[:, :, 1].argmin()][0]),  # Topmost
+                tuple(cnt[cnt[:, :, 1].argmax()][0]),  # Bottommost
+            ]
+
+            for point in extreme_points:
+                all_points.append(
+                    {
+                        "point": point,
+                        "type": "contour_extreme",
+                        "color": (0, 0, 255),  # Red
+                    }
+                )
+
+    # 4. Contour Vertices
+    simplified_contours = []
+    for cnt in contours:
+        epsilon = 0.04 * cv2.arcLength(cnt, True)
+        approx = cv2.approxPolyDP(cnt, epsilon, True)
+        simplified_contours.append(approx)
+
+    for cnt in simplified_contours:
+        for point in cnt:
+            point = tuple(point[0])
+            all_points.append(
+                {
+                    "point": point,
+                    "type": "contour_vertex",
+                    "color": (255, 255, 0),  # Cyan
+                }
+            )
+
+    # Remove duplicate points
+    unique_points = {}
+    for point_info in all_points:
+        point = point_info["point"]
+        if point not in unique_points:
+            unique_points[point] = point_info
+
+    # Visualize preserved points
+    for point_info in unique_points.values():
+        cv2.circle(preserved_img, point_info["point"], 5, point_info["color"], -1)
+
+    # Convert to list of point coordinates
+    preserved_point_list = [
+        list(point_info["point"]) for point_info in unique_points.values()
+    ]
+
+    # Save visualization
+    cv2.imwrite(f"Preserved_Points\\{file_name}_preserved_points.jpg", preserved_img)
+
+    return preserved_point_list, preserved_img
+
+
+# Modify the main execution in the original script
+
+# Use preserved_points instead of internal_points in corner_filter
 
 
 # Main execution
@@ -286,19 +371,17 @@ corner_detection, yx = HarrisCornerDetection(img.copy())
 point_filtered, internal_points, external_points = point_filter(
     yx, pt1, pt2, img.copy()
 )
-intersections = corner_filter(internal_points)
+
+preserved_points, preserved_points_img = preserve_points(
+    img, gray, thresh, (numLabels, labels, stats, centroids), yx, file_name
+)
+
+intersections = corner_filter(preserved_points)
+""" intersections = corner_filter(internal_points)
 
 if intersections is None:
     raise RuntimeError("No rectangle found")
-"""
-print(intersections[0], intersections[2])
 
-print(yx[0][0], yx[0][1])
-
-img_t = img.copy()
-for i in range(len(yx)):
-    img_t = cv2.circle(img_t, (int(yx[i][0]), int(yx[i][1])), 4, (255, 0, 0), -1)
-"""
 img_intersection = img.copy()
 img_intersection = cv2.rectangle(
     img_intersection,
@@ -306,7 +389,10 @@ img_intersection = cv2.rectangle(
     intersections[2].astype(tuple).astype(int),
     (0, 255, 0),
     3,
-)
+) """
+
+cv2.imshow("Piece Edges", preserved_points)
+cv2.waitKey(0)
 
 titles = [
     "Original Image",
@@ -315,7 +401,7 @@ titles = [
     "Individual Component",
     "Corner Detection",
     "Filtered Points",
-    "Intersection",
+    "piece_edges",
 ]
 images = [
     img,
@@ -324,7 +410,7 @@ images = [
     output,
     corner_detection,
     point_filtered,
-    img_intersection,
+    preserve_points,
 ]
 
 display_images(images, titles)
