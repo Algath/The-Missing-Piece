@@ -78,11 +78,11 @@ def HarrisCornerDetection(image):
     gray_32 = np.float32(gray)
     dst = cv2.cornerHarris(gray_32, 5, 5, 0.04)
     dst = cv2.dilate(dst, None)
-
-    image[dst > 0.01 * dst.max()] = [255, 0, 0]
-
-    data = dst.copy()
-    data[data < 0.3 * dst.max()] = 0
+    image[dst > 0.1 * dst.max()] = [255, 0, 0]
+    coords = np.argwhere(dst > 0.1 * dst.max())
+    yx = coords[:, ::-1]
+    """ data = dst.copy()
+     data[data < 0.3 * dst.max()] = 0
 
     data_max = filter_max(data, 5)
     maxima = data == data_max
@@ -92,8 +92,8 @@ def HarrisCornerDetection(image):
 
     labeled, num_objects = ndimage.label(maxima)
     slices = ndimage.find_objects(labeled)
-    yx = np.array(ndimage.center_of_mass(data, labeled, range(1, num_objects + 1)))
-    return image, yx[:, ::-1]
+    yx = np.array(ndimage.center_of_mass(data, labeled, range(1, num_objects + 1))) """
+    return image, yx
 
 
 def point_filter(xy, pt1, pt2, image):
@@ -286,11 +286,11 @@ corner_detection, yx = HarrisCornerDetection(img.copy())
 point_filtered, internal_points, external_points = point_filter(
     yx, pt1, pt2, img.copy()
 )
-intersections = corner_filter(yx)
+intersections = corner_filter(internal_points)
 
 if intersections is None:
     raise RuntimeError("No rectangle found")
-
+"""
 print(intersections[0], intersections[2])
 
 print(yx[0][0], yx[0][1])
@@ -298,9 +298,7 @@ print(yx[0][0], yx[0][1])
 img_t = img.copy()
 for i in range(len(yx)):
     img_t = cv2.circle(img_t, (int(yx[i][0]), int(yx[i][1])), 4, (255, 0, 0), -1)
-cv2.imwrite(f"Output\\{file_name}_corner_detection.jpg", img_t)
-cv2.imwrite(f"Output\\{file_name}_corners.jpg", corner_detection)
-
+"""
 img_intersection = img.copy()
 img_intersection = cv2.rectangle(
     img_intersection,
@@ -316,8 +314,8 @@ titles = [
     "Detected Form",
     "Individual Component",
     "Corner Detection",
-    "Intersection Points",
     "Filtered Points",
+    "Intersection",
 ]
 images = [
     img,
@@ -325,8 +323,8 @@ images = [
     detected_img,
     output,
     corner_detection,
-    img_intersection,
     point_filtered,
+    img_intersection,
 ]
 
 display_images(images, titles)
