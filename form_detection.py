@@ -376,7 +376,7 @@ preserved_points, preserved_points_img = preserve_points(
     img, gray, thresh, (numLabels, labels, stats, centroids), yx, file_name
 )
 
-intersections = corner_filter(preserved_points)
+# intersections = corner_filter(preserved_points)
 """ intersections = corner_filter(internal_points)
 
 if intersections is None:
@@ -391,7 +391,7 @@ img_intersection = cv2.rectangle(
     3,
 ) """
 
-cv2.imshow("Piece Edges", preserved_points)
+cv2.imshow("Piece Edges", preserved_points_img)
 cv2.waitKey(0)
 
 titles = [
@@ -402,6 +402,7 @@ titles = [
     "Corner Detection",
     "Filtered Points",
     "piece_edges",
+    "Preserved Points",
 ]
 images = [
     img,
@@ -410,7 +411,7 @@ images = [
     output,
     corner_detection,
     point_filtered,
-    preserve_points,
+    preserved_points_img,
 ]
 
 display_images(images, titles)
