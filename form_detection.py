@@ -83,8 +83,32 @@ def HarrisCornerDetection(image):
 
 
 def crop_image(pt1, pt2, image, numLabels, image_crop):
-    print(f"{pt1[1]} : {pt2[1]}, {pt1[0]} : {pt2[0]}")
-    cropped_image = image[pt1[1] : pt2[1] + 10, pt1[0] : pt2[0] + 10]
+    """Crop the image based on the bounding box + buffer when possible"""
+    print(f"{pt1[0]} : {pt1[1]}, {pt2[0]} : {pt2[1]}")
+
+    if pt1[0] - 10 < 0:
+        pt1 = (0, pt1[1])
+    else:
+        pt1 = (pt1[0] - 10, pt1[1])
+
+    if pt1[1] - 10 < 0:
+        pt1 = (pt1[0], 0)
+    else:
+        pt1 = (pt1[0], pt1[1] - 10)
+
+    if pt2[0] + 10 > image.shape[1]:
+        pt2 = (image.shape[1], pt2[1])
+    else:
+        pt2 = (pt2[0] + 10, pt2[1])
+
+    if pt2[1] + 10 > image.shape[0]:
+        pt2 = (pt2[0], image.shape[0])
+    else:
+        pt2 = (pt2[0], pt2[1] + 10)
+
+    print(f"{pt1[0]} : {pt1[1]}, {pt2[0]} : {pt2[1]}")
+
+    cropped_image = image[pt1[1] : pt2[1], pt1[0] : pt2[0]]
     cv2.imwrite(f"piece_library\\{file_name}_piece{numLabels}.jpg", cropped_image)
     image_crop.append(cropped_image)
     return cropped_image, image_crop
@@ -239,7 +263,7 @@ images = [
     img,
     thresh,
     detected_img,
-    image_crop[0],
+    image_crop[9],
     corner[9],
     preserved_points_img,
 ]
