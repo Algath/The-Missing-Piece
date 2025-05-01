@@ -6,6 +6,9 @@ from scipy.ndimage import maximum_filter as filter_max
 from scipy.ndimage import minimum_filter as filter_min
 import scipy.ndimage as ndimage
 import scipy.spatial
+import random
+from typing import List, Tuple
+from itertools import combinations
 
 
 def load_and_preprocess_image(file_name):
@@ -84,7 +87,6 @@ def HarrisCornerDetection(image):
 
 def crop_image(pt1, pt2, image, numLabels, image_crop):
     """Crop the image based on the bounding box + buffer when possible"""
-    print(f"{pt1[0]} : {pt1[1]}, {pt2[0]} : {pt2[1]}")
 
     if pt1[0] - 10 < 0:
         pt1 = (0, pt1[1])
@@ -105,8 +107,6 @@ def crop_image(pt1, pt2, image, numLabels, image_crop):
         pt2 = (pt2[0], image.shape[0])
     else:
         pt2 = (pt2[0], pt2[1] + 10)
-
-    print(f"{pt1[0]} : {pt1[1]}, {pt2[0]} : {pt2[1]}")
 
     cropped_image = image[pt1[1] : pt2[1], pt1[0] : pt2[0]]
     cv2.imwrite(f"piece_library\\{file_name}_piece{numLabels}.jpg", cropped_image)
@@ -223,6 +223,56 @@ def prepare_piece_library():
             print("Failed to delete %s. Reason: %s" % (file_path, e))
 
 
+def corner_detection(image, yx):
+    """Detect corners in the image."""
+    """ for point in yx:
+        pt1 = point.head()
+        pt2 = random.choices(point) """
+    test = Solution()
+    max_points = test.maxRectangleArea(yx)
+    cv2.rectangle(
+        image,
+        (max_points[0][0], max_points[0][1]),
+        (max_points[2][0], max_points[2][1]),
+        (255, 0, 0),
+        2,
+    )
+    return max_points, image
+
+
+class Solution:
+    def maxRectangleArea(self, points: List[List[int]]) -> Tuple[int, List[List[int]]]:
+        def findArea(nums: Tuple[List[int], List[int], List[int], List[int]]) -> int:
+            (x1, y1), (x2, y2), (x3, y3), (x4, y4) = nums
+
+            # Check if the points form a rectangle with expected coordinates
+            # The original condition is 'if not (x1,x3, y1,y2) == (x2,x4, y3,y4)': return -1
+            # This means the rectangle corners must be arranged properly
+            if not (x1, x3, y1, y2) == (x2, x4, y3, y4):
+                return -1
+
+            # Check if there is any point inside the rectangle other than these four points
+            for point in points:
+                if point in nums:
+                    continue
+                if x1 <= point[0] <= x3 and y1 <= point[1] <= y2:
+                    return -1
+
+            return (x3 - x1) * (y2 - y1)
+
+        points.sort()
+        max_area = -1
+        max_points = []
+
+        for combo in combinations(points, 4):
+            area = findArea(combo)
+            if area > max_area:
+                max_area = area
+                max_points = list(combo)
+
+        return max_points
+
+
 # Modify the main execution in the original script
 
 # Use preserved_points instead of internal_points in corner_filter
@@ -243,13 +293,16 @@ cropped_image, image_crop = draw_bounding_boxes_and_centroids(
 contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 detected_img = detect_contours(img, contours)
 for i in image_crop:
-    corner_detection, yx = HarrisCornerDetection(i.copy())
-    corner.append(corner_detection)
+    corner_detected, yx = HarrisCornerDetection(i.copy())
+    corner.append(corner_detected)
+    max_points, rectangle = corner_detection(i.copy(), yx)
 
 preserved_points, preserved_points_img = preserve_points(
     img, gray, thresh, (numLabels, labels, stats, centroids), yx, file_name
 )
 
+
+# corner_detection(image_crop[9], yx)
 
 titles = [
     "Original Image",
@@ -258,6 +311,7 @@ titles = [
     "Cropped Image",
     "Corner Detection",
     "Preserved Points",
+    "Max Rectangle",
 ]
 images = [
     img,
@@ -266,6 +320,7 @@ images = [
     image_crop[9],
     corner[9],
     preserved_points_img,
+    rectangle,
 ]
 
 display_images(images, titles)
