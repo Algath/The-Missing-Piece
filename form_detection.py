@@ -1,11 +1,11 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 from scipy.ndimage import maximum_filter as filter_max
 from scipy.ndimage import minimum_filter as filter_min
 import scipy.ndimage as ndimage
 import scipy.spatial
-
 
 def load_and_preprocess_image(file_name):
     """Load and preprocess the image."""
@@ -211,13 +211,22 @@ def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
 
     return preserved_point_list, preserved_img
 
-
+def prepare_piece_library():
+    folder = 'piece_library'
+    for filename in os.listdir(folder):
+        file_path = os.path.join(folder, filename)
+        try:
+            os.remove(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))
 # Modify the main execution in the original script
 
 # Use preserved_points instead of internal_points in corner_filter
 
 
 # Main execution
+prepare_piece_library()
+
 file_name = "duo_piece_1"
 img, gray = load_and_preprocess_image(file_name)
 thresh = threshold_image(gray)
