@@ -84,7 +84,7 @@ def HarrisCornerDetection(image):
 
 def crop_image(pt1, pt2, image, numLabels, image_crop):
     print(f"{pt1[1]} : {pt2[1]}, {pt1[0]} : {pt2[0]}")
-    cropped_image = image[pt1[1] : pt2[1], pt1[0] : pt2[0]]
+    cropped_image = image[pt1[1] : pt2[1] + 10, pt1[0] : pt2[0] + 10]
     cv2.imwrite(f"piece_library\\{file_name}_piece{numLabels}.jpg", cropped_image)
     image_crop.append(cropped_image)
     return cropped_image, image_crop
@@ -123,20 +123,9 @@ def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
                 {
                     "point": (int(centroid[0]), int(centroid[1])),
                     "type": "centroid",
-                    "color": (255, 0, 0),  # Blue
+                    "color": (0, 0, 255),  # Blue
                 }
             )
-
-    # 2. Harris Corner Detection Points
-    for point in yx:
-        point_coords = (int(point[0]), int(point[1]))
-        all_points.append(
-            {
-                "point": point_coords,
-                "type": "harris_corner",
-                "color": (0, 255, 0),  # Green
-            }
-        )
 
     # 3. Contour Extreme Points
     contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -156,7 +145,7 @@ def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
                     {
                         "point": point,
                         "type": "contour_extreme",
-                        "color": (0, 0, 255),  # Red
+                        "color": (255, 0, 0),  # Red
                     }
                 )
 
@@ -174,7 +163,7 @@ def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
                 {
                     "point": point,
                     "type": "contour_vertex",
-                    "color": (255, 255, 0),  # Cyan
+                    "color": (255, 255, 0),  # Jaune
                 }
             )
 
@@ -251,7 +240,7 @@ images = [
     thresh,
     detected_img,
     image_crop[0],
-    corner[0],
+    corner[9],
     preserved_points_img,
 ]
 
