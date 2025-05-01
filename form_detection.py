@@ -112,138 +112,6 @@ def point_filter(xy, pt1, pt2, image):
     return image, internal_points, external_points
 
 
-def corner_filter(xy, d_threshold=30, angle_thresh=30, verbose=0):
-    """Efficiently detect rectangular shapes among points using vectorized operations.
-
-    Parameters:
-    - xy: List or array of points to analyze
-    - d_threshold: Minimum distance between points
-    - angle_thresh: Threshold for angle deviation
-    - verbose: Verbosity level for debugging
-
-    Returns:
-    - Best fitting rectangle points or None"""
-
-    # Convert to numpy array and ensure 2D
-    xy = np.asarray(xy)
-
-    # Quick exit conditions
-    if len(xy) < 4:
-        return None
-
-    # Compute pairwise distances efficiently
-    dist_matrix = scipy.spatial.distance_matrix(xy, xy)
-
-    # Compute angle matrix more efficiently
-    def fast_angle_matrix(points):
-        """Compute angle matrix using vectorized operations."""
-        dx = points[:, 0][:, np.newaxis] - points[:, 0]
-        dy = points[:, 1][:, np.newaxis] - points[:, 1]
-
-        # Use numpy's arctan2 for efficient angle calculation
-        angles = np.arctan2(dy, dx) * 180 / np.pi
-        return np.abs(angles)
-
-    angle_matrix = fast_angle_matrix(xy)
-
-    def is_perpendicular(angle1, angle2, thresh=angle_thresh):
-        """Check if two angles are close to perpendicular."""
-        # Compute the absolute angular difference
-        diff = np.abs(np.abs(angle1 - angle2) - 90)
-        return diff <= thresh
-
-    def find_rectangles():
-        """Find potential rectangles using efficient search."""
-        rectangles = []
-
-        # Prune distance matrix to only close points
-        close_mask = (dist_matrix > 0) & (
-            dist_matrix < d_threshold * 3
-        )  # Limit search space
-
-        for i in range(len(xy)):
-            # Find potential first points
-            first_points = np.where(close_mask[i])[0]
-
-            for j in first_points:
-                if j <= i:
-                    continue
-
-                # Find points forming first side
-                side1 = dist_matrix[i, j]
-
-                # Iterate through potential perpendicular points
-                for k in first_points:
-                    if k <= j:
-                        continue
-
-                    # Check if points form a close to perpendicular angle
-                    if is_perpendicular(angle_matrix[i, j], angle_matrix[j, k]):
-                        # Check third point is far enough
-                        side2 = dist_matrix[j, k]
-
-                        # Find fourth point to close rectangle
-                        for l in first_points:
-                            if l <= k:
-                                continue
-
-                            # Check if points form a rectangle
-                            if (
-                                is_perpendicular(angle_matrix[j, k], angle_matrix[k, l])
-                                and np.abs(dist_matrix[k, l] - side1) < side1 * 0.2
-                                and dist_matrix[l, i] > 0
-                            ):
-                                rectangle = [i, j, k, l]
-                                rectangles.append(rectangle)
-
-        return rectangles
-
-    def score_rectangles(rectangles):
-        """Score rectangles based on area and shape."""
-        if not rectangles:
-            return None
-
-        def polygon_area(rectangle):
-            """Compute polygon area using shoelace formula."""
-            points = xy[rectangle]
-            x = points[:, 0]
-            y = points[:, 1]
-            return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-
-        def rectangularness(rectangle):
-            """Compute how close the shape is to a perfect rectangle."""
-            points = xy[rectangle]
-            angles = np.abs(
-                np.diff(
-                    np.arctan2(
-                        np.diff(points[:, 1], append=points[0, 1]),
-                        np.diff(points[:, 0], append=points[0, 0]),
-                    )
-                )
-                * 180
-                / np.pi
-            )
-            return np.mean(np.abs(angles - 90))
-
-        # Compute scores
-        areas = np.array([polygon_area(rect) for rect in rectangles])
-        rectangularness_scores = np.array(
-            [rectangularness(rect) for rect in rectangles]
-        )
-
-        # Combined scoring
-        scores = areas / (rectangularness_scores + 1e-5)
-        best_idx = np.argmax(scores)
-
-        return xy[rectangles[best_idx]]
-
-    # Main processing
-    potential_rectangles = find_rectangles()
-    best_rectangle = score_rectangles(potential_rectangles)
-
-    return best_rectangle
-
-
 def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
     """
     Preserve and combine points from multiple detection methods.
@@ -360,7 +228,7 @@ def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
 
 
 # Main execution
-file_name = "pieces_puzzle_multiple"
+file_name = "duo_piece_1"
 img, gray = load_and_preprocess_image(file_name)
 thresh = threshold_image(gray)
 numLabels, labels, stats, centroids = find_connected_components(thresh)
