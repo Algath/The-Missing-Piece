@@ -70,24 +70,15 @@ def display_images(images, titles):
 
 
 def HarrisCornerDetection(image):
-    gray_32 = np.float32(gray)
+    crop_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    crop_gray = cv2.GaussianBlur(crop_gray, (5, 5), 0)
+    gray_32 = np.float32(crop_gray)
     dst = cv2.cornerHarris(gray_32, 5, 3, 0.04)
     dst = cv2.dilate(dst, None)
     image[dst > 0.06 * dst.max()] = [255, 0, 0]
     coords = np.argwhere(dst > 0.06 * dst.max())
     yx = coords[:, ::-1]
-    """ data = dst.copy()
-     data[data < 0.3 * dst.max()] = 0
 
-    data_max = filter_max(data, 5)
-    maxima = data == data_max
-    data_min = filter_min(data, 5)
-    diff = (data_max - data_min) > 100
-    maxima[diff == 0] = 0
-
-    labeled, num_objects = ndimage.label(maxima)
-    slices = ndimage.find_objects(labeled)
-    yx = np.array(ndimage.center_of_mass(data, labeled, range(1, num_objects + 1))) """
     return image, yx
 
 
@@ -229,6 +220,7 @@ prepare_piece_library()
 
 file_name = "pieces_puzzle_multiple"
 image_crop = []
+corner = []
 img, gray = load_and_preprocess_image(file_name)
 thresh = threshold_image(gray)
 numLabels, labels, stats, centroids = find_connected_components(thresh)
@@ -237,7 +229,9 @@ cropped_image, image_crop = draw_bounding_boxes_and_centroids(
 )
 contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 detected_img = detect_contours(img, contours)
-corner_detection, yx = HarrisCornerDetection(img.copy())
+for i in image_crop:
+    corner_detection, yx = HarrisCornerDetection(i.copy())
+    corner.append(corner_detection)
 
 preserved_points, preserved_points_img = preserve_points(
     img, gray, thresh, (numLabels, labels, stats, centroids), yx, file_name
@@ -248,17 +242,16 @@ titles = [
     "Original Image",
     "Binary Image",
     "Detected Form",
-    "Corner Detection",
     "Cropped Image",
-    "piece_edges",
+    "Corner Detection",
     "Preserved Points",
 ]
 images = [
     img,
     thresh,
     detected_img,
-    corner_detection,
-    image_crop[9],
+    image_crop[0],
+    corner[0],
     preserved_points_img,
 ]
 
