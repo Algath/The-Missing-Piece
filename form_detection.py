@@ -45,17 +45,14 @@ def draw_bounding_boxes_and_centroids(img, stats, centroids, numLabels, image_cr
                 stats[i, cv2.CC_STAT_HEIGHT],
             )
             pt1, pt2 = (x1, y1), (x1 + w, y1 + h)
-            cropped_image, image_crop = crop_image(
-                pt1, pt2, new_img, numLabels, image_crop
-            )
+            cropped_image, image_crop = crop_image(pt1, pt2, new_img, i, image_crop)
             (X, Y) = centroids[i]
 
-            cv2.rectangle(new_img, pt1, pt2, (0, 255, 0), 3)
             cv2.circle(cropped_image, (int(X), int(Y)), 4, (0, 0, 255), -1)
 
             componentMask = (labels == i).astype("uint8") * 255
             output = cv2.bitwise_or(output, componentMask)
-    return output, pt1, pt2, cropped_image, image_crop
+    return output, cropped_image, image_crop
 
 
 def detect_contours(img, contours):
@@ -101,6 +98,7 @@ def HarrisCornerDetection(image):
 
 
 def crop_image(pt1, pt2, image, numLabels, image_crop):
+    print(f"{pt1[1]} : {pt2[1]}, {pt1[0]} : {pt2[0]}")
     cropped_image = image[pt1[1] : pt2[1], pt1[0] : pt2[0]]
     cv2.imwrite(f"piece_library\\{file_name}_piece{numLabels}.jpg", cropped_image)
     image_crop.append(cropped_image)
@@ -235,13 +233,13 @@ def prepare_piece_library():
 # Main execution
 prepare_piece_library()
 
-file_name = "duo_piece_1"
+file_name = "pieces_puzzle_multiple"
 image_crop = []
 img, gray = load_and_preprocess_image(file_name)
 thresh = threshold_image(gray)
 numLabels, labels, stats, centroids = find_connected_components(thresh)
-output, pt1, pt2, cropped_image, image_crop = draw_bounding_boxes_and_centroids(
-    thresh, stats, centroids, numLabels, image_crop
+output, cropped_image, image_crop = draw_bounding_boxes_and_centroids(
+    img, stats, centroids, numLabels, image_crop
 )
 contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 detected_img = detect_contours(img, contours)
@@ -269,7 +267,7 @@ images = [
     detected_img,
     output,
     corner_detection,
-    image_crop[1],
+    image_crop[9],
     preserved_points_img,
 ]
 
