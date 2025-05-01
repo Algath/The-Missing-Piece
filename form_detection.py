@@ -30,9 +30,8 @@ def find_connected_components(thresh):
     return analysis
 
 
-def draw_bounding_boxes_and_centroids(img, stats, centroids, numLabels, image_crop):
+def draw_bounding_boxes_and_centroids(img, stats, numLabels, image_crop):
     """Draw bounding boxes and centroids on the image."""
-    output = np.zeros(img.shape[:2], dtype="uint8")
     pt1, pt2 = (0, 0), (0, 0)
     for i in range(1, numLabels):
         area = stats[i, cv2.CC_STAT_AREA]
@@ -46,13 +45,8 @@ def draw_bounding_boxes_and_centroids(img, stats, centroids, numLabels, image_cr
             )
             pt1, pt2 = (x1, y1), (x1 + w, y1 + h)
             cropped_image, image_crop = crop_image(pt1, pt2, new_img, i, image_crop)
-            (X, Y) = centroids[i]
 
-            cv2.circle(cropped_image, (int(X), int(Y)), 4, (0, 0, 255), -1)
-
-            componentMask = (labels == i).astype("uint8") * 255
-            output = cv2.bitwise_or(output, componentMask)
-    return output, cropped_image, image_crop
+    return cropped_image, image_crop
 
 
 def detect_contours(img, contours):
@@ -238,13 +232,12 @@ image_crop = []
 img, gray = load_and_preprocess_image(file_name)
 thresh = threshold_image(gray)
 numLabels, labels, stats, centroids = find_connected_components(thresh)
-output, cropped_image, image_crop = draw_bounding_boxes_and_centroids(
-    img, stats, centroids, numLabels, image_crop
+cropped_image, image_crop = draw_bounding_boxes_and_centroids(
+    img, stats, numLabels, image_crop
 )
 contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 detected_img = detect_contours(img, contours)
 corner_detection, yx = HarrisCornerDetection(img.copy())
-# cropped_image, image_crop = crop_image(pt1, pt2, thresh.copy(), numLabels)
 
 preserved_points, preserved_points_img = preserve_points(
     img, gray, thresh, (numLabels, labels, stats, centroids), yx, file_name
@@ -255,7 +248,6 @@ titles = [
     "Original Image",
     "Binary Image",
     "Detected Form",
-    "Individual Component",
     "Corner Detection",
     "Cropped Image",
     "piece_edges",
@@ -265,7 +257,6 @@ images = [
     img,
     thresh,
     detected_img,
-    output,
     corner_detection,
     image_crop[9],
     preserved_points_img,
