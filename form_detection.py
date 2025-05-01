@@ -7,6 +7,7 @@ from scipy.ndimage import minimum_filter as filter_min
 import scipy.ndimage as ndimage
 import scipy.spatial
 
+
 def load_and_preprocess_image(file_name):
     """Load and preprocess the image."""
     img = cv2.imread(f"Image\\{file_name}.jpg")
@@ -29,7 +30,7 @@ def find_connected_components(thresh):
     return analysis
 
 
-def draw_bounding_boxes_and_centroids(img, stats, centroids, numLabels):
+def draw_bounding_boxes_and_centroids(img, stats, centroids, numLabels, image_crop):
     """Draw bounding boxes and centroids on the image."""
     output = np.zeros(img.shape[:2], dtype="uint8")
     pt1, pt2 = (0, 0), (0, 0)
@@ -44,14 +45,17 @@ def draw_bounding_boxes_and_centroids(img, stats, centroids, numLabels):
                 stats[i, cv2.CC_STAT_HEIGHT],
             )
             pt1, pt2 = (x1, y1), (x1 + w, y1 + h)
+            cropped_image, image_crop = crop_image(
+                pt1, pt2, new_img, numLabels, image_crop
+            )
             (X, Y) = centroids[i]
 
             cv2.rectangle(new_img, pt1, pt2, (0, 255, 0), 3)
-            cv2.circle(new_img, (int(X), int(Y)), 4, (0, 0, 255), -1)
+            cv2.circle(cropped_image, (int(X), int(Y)), 4, (0, 0, 255), -1)
 
             componentMask = (labels == i).astype("uint8") * 255
             output = cv2.bitwise_or(output, componentMask)
-    return output, pt1, pt2
+    return output, pt1, pt2, cropped_image, image_crop
 
 
 def detect_contours(img, contours):
@@ -76,7 +80,7 @@ def display_images(images, titles):
 
 def HarrisCornerDetection(image):
     gray_32 = np.float32(gray)
-    dst = cv2.cornerHarris(gray_32, 5, 5, 0.04)
+    dst = cv2.cornerHarris(gray_32, 5, 3, 0.04)
     dst = cv2.dilate(dst, None)
     image[dst > 0.06 * dst.max()] = [255, 0, 0]
     coords = np.argwhere(dst > 0.06 * dst.max())
@@ -96,10 +100,11 @@ def HarrisCornerDetection(image):
     return image, yx
 
 
-def crop_image(pt1, pt2, image):
+def crop_image(pt1, pt2, image, numLabels, image_crop):
     cropped_image = image[pt1[1] : pt2[1], pt1[0] : pt2[0]]
-
-    return cropped_image
+    cv2.imwrite(f"piece_library\\{file_name}_piece{numLabels}.jpg", cropped_image)
+    image_crop.append(cropped_image)
+    return cropped_image, image_crop
 
 
 def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
@@ -211,14 +216,17 @@ def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
 
     return preserved_point_list, preserved_img
 
+
 def prepare_piece_library():
-    folder = 'piece_library'
+    folder = "piece_library"
     for filename in os.listdir(folder):
         file_path = os.path.join(folder, filename)
         try:
             os.remove(file_path)
         except Exception as e:
-            print('Failed to delete %s. Reason: %s' % (file_path, e))
+            print("Failed to delete %s. Reason: %s" % (file_path, e))
+
+
 # Modify the main execution in the original script
 
 # Use preserved_points instead of internal_points in corner_filter
@@ -228,14 +236,17 @@ def prepare_piece_library():
 prepare_piece_library()
 
 file_name = "duo_piece_1"
+image_crop = []
 img, gray = load_and_preprocess_image(file_name)
 thresh = threshold_image(gray)
 numLabels, labels, stats, centroids = find_connected_components(thresh)
-output, pt1, pt2 = draw_bounding_boxes_and_centroids(img, stats, centroids, numLabels)
+output, pt1, pt2, cropped_image, image_crop = draw_bounding_boxes_and_centroids(
+    thresh, stats, centroids, numLabels, image_crop
+)
 contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 detected_img = detect_contours(img, contours)
 corner_detection, yx = HarrisCornerDetection(img.copy())
-cropped_image = crop_image(pt1, pt2, thresh.copy())
+# cropped_image, image_crop = crop_image(pt1, pt2, thresh.copy(), numLabels)
 
 preserved_points, preserved_points_img = preserve_points(
     img, gray, thresh, (numLabels, labels, stats, centroids), yx, file_name
@@ -258,7 +269,7 @@ images = [
     detected_img,
     output,
     corner_detection,
-    cropped_image,
+    image_crop[1],
     preserved_points_img,
 ]
 
