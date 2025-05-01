@@ -96,20 +96,10 @@ def HarrisCornerDetection(image):
     return image, yx
 
 
-def point_filter(xy, pt1, pt2, image):
-    image = cv2.rectangle(image, pt1, pt2, (0, 255, 0), 3)
-    internal_points = []
-    external_points = []
+def crop_image(pt1, pt2, image):
+    cropped_image = image[pt1[1] : pt2[1], pt1[0] : pt2[0]]
 
-    for i in range(len(xy)):
-        point = (int(xy[i][0]), int(xy[i][1]))
-        if pt1[0] <= xy[i][0] <= pt2[0] and pt1[1] <= xy[i][1] <= pt2[1]:
-            image = cv2.circle(image, point, 4, (255, 0, 0), -1)
-            internal_points.append(point)
-        else:
-            image = cv2.circle(image, point, 4, (0, 0, 255), -1)
-            external_points.append(point)
-    return image, internal_points, external_points
+    return cropped_image
 
 
 def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
@@ -236,31 +226,12 @@ output, pt1, pt2 = draw_bounding_boxes_and_centroids(img, stats, centroids, numL
 contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 detected_img = detect_contours(img, contours)
 corner_detection, yx = HarrisCornerDetection(img.copy())
-point_filtered, internal_points, external_points = point_filter(
-    yx, pt1, pt2, img.copy()
-)
+cropped_image = crop_image(pt1, pt2, thresh.copy())
 
 preserved_points, preserved_points_img = preserve_points(
     img, gray, thresh, (numLabels, labels, stats, centroids), yx, file_name
 )
 
-# intersections = corner_filter(preserved_points)
-""" intersections = corner_filter(internal_points)
-
-if intersections is None:
-    raise RuntimeError("No rectangle found")
-
-img_intersection = img.copy()
-img_intersection = cv2.rectangle(
-    img_intersection,
-    intersections[0].astype(tuple).astype(int),
-    intersections[2].astype(tuple).astype(int),
-    (0, 255, 0),
-    3,
-) """
-
-cv2.imshow("Piece Edges", preserved_points_img)
-cv2.waitKey(0)
 
 titles = [
     "Original Image",
@@ -268,7 +239,7 @@ titles = [
     "Detected Form",
     "Individual Component",
     "Corner Detection",
-    "Filtered Points",
+    "Cropped Image",
     "piece_edges",
     "Preserved Points",
 ]
@@ -278,7 +249,7 @@ images = [
     detected_img,
     output,
     corner_detection,
-    point_filtered,
+    cropped_image,
     preserved_points_img,
 ]
 
