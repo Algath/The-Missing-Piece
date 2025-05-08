@@ -225,57 +225,44 @@ def prepare_piece_library():
 
 def corner_detection(image, yx):
     """Detect corners in the image."""
-    """ for point in yx:
-        pt1 = point.head()
-        pt2 = random.choices(point) """
-    test = Solution()
-    max_points = test.maxRectangleArea(yx)
-    cv2.rectangle(
-        image,
-        (max_points[0][0], max_points[0][1]),
-        (max_points[2][0], max_points[2][1]),
-        (255, 0, 0),
-        2,
-    )
-    return max_points, image
+    moitie = yx.shape[0] // 2
+    angle_droit = []
+    tolerance = 1e-2  # Tolérance pour la comparaison d'angle
+    segment_len = 0
+    for A in yx:
+        coordonnate = yx.copy()
+        for B in yx:
+            if np.any(A != B):
+                while len(coordonnate) != 0:
+                    C = coordonnate[0]
+                    coordonnate = np.delete(coordonnate, 0, axis=0)
+                    if np.any(A != C) and np.any(B != C):
+                        AB = B - A
+                        AC = C - A
 
+                        norme_AB = np.linalg.norm(AB)
+                        norme_AC = np.linalg.norm(AC)
 
-class Solution:
-    def maxRectangleArea(self, points: List[List[int]]) -> Tuple[int, List[List[int]]]:
-        def findArea(nums: Tuple[List[int], List[int], List[int], List[int]]) -> int:
-            (x1, y1), (x2, y2), (x3, y3), (x4, y4) = nums
+                        if norme_AB == 0 or norme_AC == 0:
+                            continue  # Éviter la division par zéro
 
-            # Check if the points form a rectangle with expected coordinates
-            # The original condition is 'if not (x1,x3, y1,y2) == (x2,x4, y3,y4)': return -1
-            # This means the rectangle corners must be arranged properly
-            if not (x1, x3, y1, y2) == (x2, x4, y3, y4):
-                return -1
+                        produit_scalaire = np.dot(AB, AC)
 
-            # Check if there is any point inside the rectangle other than these four points
-            for point in points:
-                if point in nums:
-                    continue
-                if x1 <= point[0] <= x3 and y1 <= point[1] <= y2:
-                    return -1
+                        angle_radiant = np.arccos(
+                            produit_scalaire / (norme_AB * norme_AC)
+                        )
+                        angle_degre = np.degrees(angle_radiant)
 
-            return (x3 - x1) * (y2 - y1)
+                        if abs(angle_degre - 90) < tolerance:
+                            angle_droit.append(A)
 
-        points.sort()
-        max_area = -1
-        max_points = []
-
-        for combo in combinations(points, 4):
-            area = findArea(combo)
-            if area > max_area:
-                max_area = area
-                max_points = list(combo)
-
-        return max_points
-
-
-# Modify the main execution in the original script
-
-# Use preserved_points instead of internal_points in corner_filter
+    # print("Angle droit:", angle_droit)
+    for point in angle_droit:
+        print("Angle droit:", point)
+        cv2.circle(image, tuple(point), 5, (0, 255, 0), -1)
+    cv2.imshow("Angle droit", image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 # Main execution
@@ -293,9 +280,9 @@ cropped_image, image_crop = draw_bounding_boxes_and_centroids(
 contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 detected_img = detect_contours(img, contours)
 for i in image_crop:
-    corner_detected, yx = HarrisCornerDetection(i.copy())
+    corner_detected, yx = HarrisCornerDetection(image_crop[5].copy())
     corner.append(corner_detected)
-    max_points, rectangle = corner_detection(i.copy(), yx)
+    corner_detection(image_crop[5].copy(), yx)
 
 preserved_points, preserved_points_img = preserve_points(
     img, gray, thresh, (numLabels, labels, stats, centroids), yx, file_name
@@ -317,10 +304,9 @@ images = [
     img,
     thresh,
     detected_img,
-    image_crop[9],
-    corner[9],
+    image_crop[5],
+    corner[5],
     preserved_points_img,
-    rectangle,
 ]
 
 display_images(images, titles)
