@@ -70,22 +70,21 @@ def draw_bounding_boxes_and_centroids(img, stats, numLabels, image_crop):
     return cropped_image, image_crop
 
 
-def detect_contours(img, thresh_crop):
+def detect_contours(img, thresh_crop, contours_crop):
     """Detect and draw contours on the image."""
     detected_img = img.copy()
-    contours_crop = []
 
     for i in range(len(thresh_crop)):
         contours, _ = cv2.findContours(
             thresh_crop[i], cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
         )
-        print(len(contours_crop))
+
         for cnt in contours:
             epsilon = 0.0001 * cv2.arcLength(cnt, True)
             approx = cv2.approxPolyDP(cnt, epsilon, True)
             cv2.drawContours(detected_img, [approx], 0, (0, 255, 0), 2)
         contours_crop.append(contours)
-        print(len(contours_crop))
+
     return detected_img, contours_crop
 
 
@@ -265,6 +264,7 @@ def corner_detection(image, yx, contours):
     test = img.copy()
     cv2.imshow("Angle droit", test)
     cv2.waitKey(0)
+    print(len(contours))
     for j in range(len(yx)):
         A = yx[j]
         for i in range(len(contours)):
@@ -325,15 +325,15 @@ image_crop = []
 corner = []
 thresh_crop = []
 gray_crop = []
+contours_crop = []
 
 img, numLabels, labels, stats, centroids = first_process(file_name)
 cropped_image, image_crop = draw_bounding_boxes_and_centroids(
     img, stats, numLabels, image_crop
 )
 thresh_crop, gray_crop = second_process(image_crop, thresh_crop, gray_crop)
-print(len(thresh_crop))
 
-detected_img, contours_crop = detect_contours(img, thresh_crop)
+detected_img, contours_crop = detect_contours(image_crop, thresh_crop, contours_crop)
 for i in image_crop:
     corner_detected, yx = HarrisCornerDetection(image_crop[5].copy())
     corner.append(corner_detected)
