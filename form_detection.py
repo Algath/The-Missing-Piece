@@ -33,6 +33,24 @@ def find_connected_components(thresh):
     return analysis
 
 
+def first_process(file_name):
+    img, gray = load_and_preprocess_image(file_name)
+    thresh = threshold_image(gray)
+    numLabels, labels, stats, centroids = find_connected_components(thresh)
+    return img, numLabels, labels, stats, centroids
+
+
+def second_process(image_crop, thresh_crop, gray_crop):
+    """Apply thresholding to the cropped images."""
+    for i in range(len(image_crop)):
+        gray = cv2.cvtColor(image_crop[i], cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        ret, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        thresh_crop.append(thresh)
+        gray_crop.append(gray)
+    return thresh_crop, gray_crop
+
+
 def draw_bounding_boxes_and_centroids(img, stats, numLabels, image_crop):
     """Draw bounding boxes and centroids on the image."""
     pt1, pt2 = (0, 0), (0, 0)
@@ -52,14 +70,23 @@ def draw_bounding_boxes_and_centroids(img, stats, numLabels, image_crop):
     return cropped_image, image_crop
 
 
-def detect_contours(img, contours):
+def detect_contours(img, thresh_crop):
     """Detect and draw contours on the image."""
     detected_img = img.copy()
-    for cnt in contours:
-        epsilon = 0.0001 * cv2.arcLength(cnt, True)
-        approx = cv2.approxPolyDP(cnt, epsilon, True)
-        cv2.drawContours(detected_img, [approx], 0, (0, 255, 0), 2)
-    return detected_img
+    contours_crop = []
+
+    for i in range(len(thresh_crop)):
+        contours, _ = cv2.findContours(
+            thresh_crop[i], cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
+        )
+        print(len(contours_crop))
+        for cnt in contours:
+            epsilon = 0.0001 * cv2.arcLength(cnt, True)
+            approx = cv2.approxPolyDP(cnt, epsilon, True)
+            cv2.drawContours(detected_img, [approx], 0, (0, 255, 0), 2)
+        contours_crop.append(contours)
+        print(len(contours_crop))
+    return detected_img, contours_crop
 
 
 def display_images(images, titles):
@@ -138,6 +165,8 @@ def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
     # Collect points from different methods
     all_points = []
 
+    preserved_point_list = []
+
     # 1. Centroids from connected components
     for i in range(1, numLabels):  # Skip background (index 0)
         area = stats[i, cv2.CC_STAT_AREA]
@@ -152,60 +181,63 @@ def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
             )
 
     # 3. Contour Extreme Points
-    contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    for i in range(len(tresh_crop)):
+        contours, _ = cv2.findContours(
+            thresh_crop[i], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+        )
 
-    for cnt in contours:
-        # Extract extreme points
-        if len(cnt) > 0:
-            extreme_points = [
-                tuple(cnt[cnt[:, :, 0].argmin()][0]),  # Leftmost
-                tuple(cnt[cnt[:, :, 0].argmax()][0]),  # Rightmost
-                tuple(cnt[cnt[:, :, 1].argmin()][0]),  # Topmost
-                tuple(cnt[cnt[:, :, 1].argmax()][0]),  # Bottommost
-            ]
+        for cnt in contours:
+            # Extract extreme points
+            if len(cnt) > 0:
+                extreme_points = [
+                    tuple(cnt[cnt[:, :, 0].argmin()][0]),  # Leftmost
+                    tuple(cnt[cnt[:, :, 0].argmax()][0]),  # Rightmost
+                    tuple(cnt[cnt[:, :, 1].argmin()][0]),  # Topmost
+                    tuple(cnt[cnt[:, :, 1].argmax()][0]),  # Bottommost
+                ]
 
-            for point in extreme_points:
+                for point in extreme_points:
+                    all_points.append(
+                        {
+                            "point": point,
+                            "type": "contour_extreme",
+                            "color": (255, 0, 0),  # Red
+                        }
+                    )
+
+        # 4. Contour Vertices
+        simplified_contours = []
+        for cnt in contours:
+            epsilon = 0.04 * cv2.arcLength(cnt, True)
+            approx = cv2.approxPolyDP(cnt, epsilon, True)
+            simplified_contours.append(approx)
+
+        for cnt in simplified_contours:
+            for point in cnt:
+                point = tuple(point[0])
                 all_points.append(
                     {
                         "point": point,
-                        "type": "contour_extreme",
-                        "color": (255, 0, 0),  # Red
+                        "type": "contour_vertex",
+                        "color": (255, 255, 0),  # Jaune
                     }
                 )
 
-    # 4. Contour Vertices
-    simplified_contours = []
-    for cnt in contours:
-        epsilon = 0.04 * cv2.arcLength(cnt, True)
-        approx = cv2.approxPolyDP(cnt, epsilon, True)
-        simplified_contours.append(approx)
+        # Remove duplicate points
+        unique_points = {}
+        for point_info in all_points:
+            point = point_info["point"]
+            if point not in unique_points:
+                unique_points[point] = point_info
 
-    for cnt in simplified_contours:
-        for point in cnt:
-            point = tuple(point[0])
-            all_points.append(
-                {
-                    "point": point,
-                    "type": "contour_vertex",
-                    "color": (255, 255, 0),  # Jaune
-                }
-            )
+        # Visualize preserved points
+        for point_info in unique_points.values():
+            cv2.circle(preserved_img, point_info["point"], 5, point_info["color"], -1)
 
-    # Remove duplicate points
-    unique_points = {}
-    for point_info in all_points:
-        point = point_info["point"]
-        if point not in unique_points:
-            unique_points[point] = point_info
-
-    # Visualize preserved points
-    for point_info in unique_points.values():
-        cv2.circle(preserved_img, point_info["point"], 5, point_info["color"], -1)
-
-    # Convert to list of point coordinates
-    preserved_point_list = [
-        list(point_info["point"]) for point_info in unique_points.values()
-    ]
+        # Convert to list of point coordinates
+        preserved_point_list = [
+            list(point_info["point"]) for point_info in unique_points.values()
+        ]
 
     # Save visualization
     cv2.imwrite(f"Preserved_Points\\{file_name}_preserved_points.jpg", preserved_img)
@@ -223,46 +255,66 @@ def prepare_piece_library():
             print("Failed to delete %s. Reason: %s" % (file_path, e))
 
 
-def corner_detection(image, yx):
+def corner_detection(image, yx, contours):
     """Detect corners in the image."""
     moitie = yx.shape[0] // 2
     angle_droit = []
     tolerance = 1e-2  # Tolérance pour la comparaison d'angle
     segment_len = 0
-    for A in yx:
-        coordonnate = yx.copy()
-        for B in yx:
-            if np.any(A != B):
-                while len(coordonnate) != 0:
-                    C = coordonnate[0]
-                    coordonnate = np.delete(coordonnate, 0, axis=0)
-                    if np.any(A != C) and np.any(B != C):
-                        AB = B - A
-                        AC = C - A
+    norme_ACont1 = []
+    test = img.copy()
+    cv2.imshow("Angle droit", test)
+    cv2.waitKey(0)
+    for j in range(len(yx)):
+        A = yx[j]
+        for i in range(len(contours)):
+            ACont = contours[i] - A
+            norme_ACont1.append(np.linalg.norm(ACont))
+            if norme_ACont1 == 504.9831680363218:
+                cv2.circle(test, tuple(contours[i]), 10, (255, 0, 0), -1)
+                cv2.dilate(test, None)
+                cv2.imshow("Angle droit", test)
+                cv2.waitKey(0)
+                cv2.destroyAllWindows()
+            if np.any(contours[i] == A):
+                if i < 10:
+                    C = contours[len(contours) - 10 + i]
+                elif i > len(contours) - 10:
+                    B = contours[10 - len(contours) + i]
+                else:
+                    B = contours[i + 10]
+                    C = contours[i - 10]
 
-                        norme_AB = np.linalg.norm(AB)
-                        norme_AC = np.linalg.norm(AC)
+                print("B:", B)
+                print("C:", C)
 
-                        if norme_AB == 0 or norme_AC == 0:
-                            continue  # Éviter la division par zéro
+        """ C = coordonnate[0]
+        coordonnate = np.delete(coordonnate, 0, axis=0)
+        if np.any(A != C) and np.any(B != C):
+            AB = B - A
+            AC = C - A
 
-                        produit_scalaire = np.dot(AB, AC)
+            norme_AB = np.linalg.norm(AB)
+            norme_AC = np.linalg.norm(AC)
 
-                        angle_radiant = np.arccos(
-                            produit_scalaire / (norme_AB * norme_AC)
-                        )
-                        angle_degre = np.degrees(angle_radiant)
+            if norme_AB == 0 or norme_AC == 0:
+                continue  # Éviter la division par zéro
 
-                        if abs(angle_degre - 90) < tolerance:
-                            angle_droit.append(A)
+            produit_scalaire = np.dot(AB, AC)
+
+            angle_radiant = np.arccos(
+                produit_scalaire / (norme_AB * norme_AC)
+            )
+            angle_degre = np.degrees(angle_radiant)
+
+            if abs(angle_degre - 90) < tolerance:
+                angle_droit.append(A) """
+    print("Norme ACont min:", min(norme_ACont1))
 
     # print("Angle droit:", angle_droit)
-    for point in angle_droit:
+    """ for point in angle_droit:
         print("Angle droit:", point)
-        cv2.circle(image, tuple(point), 5, (0, 255, 0), -1)
-    cv2.imshow("Angle droit", image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+        cv2.circle(image, tuple(point), 5, (0, 255, 0), -1) """
 
 
 # Main execution
@@ -271,21 +323,26 @@ prepare_piece_library()
 file_name = "pieces_puzzle_multiple"
 image_crop = []
 corner = []
-img, gray = load_and_preprocess_image(file_name)
-thresh = threshold_image(gray)
-numLabels, labels, stats, centroids = find_connected_components(thresh)
+thresh_crop = []
+gray_crop = []
+
+img, numLabels, labels, stats, centroids = first_process(file_name)
 cropped_image, image_crop = draw_bounding_boxes_and_centroids(
     img, stats, numLabels, image_crop
 )
-contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-detected_img = detect_contours(img, contours)
+thresh_crop, gray_crop = second_process(image_crop, thresh_crop, gray_crop)
+print(len(thresh_crop))
+
+detected_img, contours_crop = detect_contours(img, thresh_crop)
 for i in image_crop:
     corner_detected, yx = HarrisCornerDetection(image_crop[5].copy())
     corner.append(corner_detected)
-    corner_detection(image_crop[5].copy(), yx)
+
+# print(contours[5])
+corner_detection(image_crop[5].copy(), yx, contours_crop[5])
 
 preserved_points, preserved_points_img = preserve_points(
-    img, gray, thresh, (numLabels, labels, stats, centroids), yx, file_name
+    img, gray_crop, thresh_crop, (numLabels, labels, stats, centroids), yx, file_name
 )
 
 
@@ -302,7 +359,7 @@ titles = [
 ]
 images = [
     img,
-    thresh,
+    thresh_crop[5],
     detected_img,
     image_crop[5],
     corner[5],
