@@ -42,12 +42,12 @@ def first_process(file_name):
 
 def second_process(image_crop, thresh_crop, gray_crop):
     """Apply thresholding to the cropped images."""
-    for i in range(len(image_crop)):
-        gray = cv2.cvtColor(image_crop[i], cv2.COLOR_BGR2GRAY)
-        gray = cv2.GaussianBlur(gray, (5, 5), 0)
-        ret, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-        thresh_crop.append(thresh)
-        gray_crop.append(gray)
+
+    gray = cv2.cvtColor(image_crop, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    ret, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    thresh_crop.append(thresh)
+    gray_crop.append(gray)
     return thresh_crop, gray_crop
 
 
@@ -74,16 +74,14 @@ def detect_contours(img, thresh_crop, contours_crop):
     """Detect and draw contours on the image."""
     detected_img = img.copy()
 
-    for i in range(len(thresh_crop)):
-        contours, _ = cv2.findContours(
-            thresh_crop[i], cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
-        )
+    contours_crop, _ = cv2.findContours(
+        thresh_crop[0], cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
+    )
 
-        for cnt in contours:
-            epsilon = 0.0001 * cv2.arcLength(cnt, True)
-            approx = cv2.approxPolyDP(cnt, epsilon, True)
-            cv2.drawContours(detected_img, [approx], 0, (0, 255, 0), 2)
-        contours_crop.append(contours)
+    for cnt in contours_crop:
+        epsilon = 0.0001 * cv2.arcLength(cnt, True)
+        approx = cv2.approxPolyDP(cnt, epsilon, True)
+        cv2.drawContours(detected_img, [approx], 0, (0, 255, 0), 2)
 
     return detected_img, contours_crop
 
@@ -180,9 +178,9 @@ def preserve_points(img, gray, thresh, connected_analysis, yx, file_name):
             )
 
     # 3. Contour Extreme Points
-    for i in range(len(tresh_crop)):
+    for i in range(len(thresh)):
         contours, _ = cv2.findContours(
-            thresh_crop[i], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+            thresh[i], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
         )
 
         for cnt in contours:
@@ -262,8 +260,6 @@ def corner_detection(image, yx, contours):
     segment_len = 0
     norme_ACont1 = []
     test = img.copy()
-    cv2.imshow("Angle droit", test)
-    cv2.waitKey(0)
     print(len(contours))
     for j in range(len(yx)):
         A = yx[j]
@@ -273,9 +269,9 @@ def corner_detection(image, yx, contours):
             if norme_ACont1 == 504.9831680363218:
                 cv2.circle(test, tuple(contours[i]), 10, (255, 0, 0), -1)
                 cv2.dilate(test, None)
-                cv2.imshow("Angle droit", test)
+                """ cv2.imshow("Angle droit", test)
                 cv2.waitKey(0)
-                cv2.destroyAllWindows()
+                cv2.destroyAllWindows() """
             if np.any(contours[i] == A):
                 if i < 10:
                     C = contours[len(contours) - 10 + i]
@@ -331,19 +327,26 @@ img, numLabels, labels, stats, centroids = first_process(file_name)
 cropped_image, image_crop = draw_bounding_boxes_and_centroids(
     img, stats, numLabels, image_crop
 )
-thresh_crop, gray_crop = second_process(image_crop, thresh_crop, gray_crop)
+for i in range(len(image_crop)):
+    thresh_crop, gray_crop = second_process(image_crop[i], thresh_crop, gray_crop)
+    detected_img, contours_crop = detect_contours(
+        image_crop[i], thresh_crop, contours_crop
+    )
 
-detected_img, contours_crop = detect_contours(image_crop, thresh_crop, contours_crop)
-for i in image_crop:
-    corner_detected, yx = HarrisCornerDetection(image_crop[5].copy())
+    corner_detected, yx = HarrisCornerDetection(image_crop[i].copy())
     corner.append(corner_detected)
 
-# print(contours[5])
-corner_detection(image_crop[5].copy(), yx, contours_crop[5])
+    # print(contours[5])
+    corner_detection(image_crop[i].copy(), yx, contours_crop)
 
-preserved_points, preserved_points_img = preserve_points(
-    img, gray_crop, thresh_crop, (numLabels, labels, stats, centroids), yx, file_name
-)
+    preserved_points, preserved_points_img = preserve_points(
+        img,
+        gray_crop,
+        thresh_crop,
+        (numLabels, labels, stats, centroids),
+        yx,
+        file_name,
+    )
 
 
 # corner_detection(image_crop[9], yx)
