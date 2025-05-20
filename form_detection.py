@@ -75,7 +75,7 @@ def detect_contours(img, thresh_crop, contours_crop):
     detected_img = img.copy()
 
     contours_crop, _ = cv2.findContours(
-        thresh_crop[0], cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
+        thresh_crop[-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
     )
 
     for cnt in contours_crop:
@@ -260,29 +260,31 @@ def corner_detection(image, yx, contours):
     segment_len = 0
     norme_ACont1 = []
     test = img.copy()
-    print(len(contours))
+
     for j in range(len(yx)):
         A = yx[j]
-        for i in range(len(contours)):
-            ACont = contours[i] - A
+        for i in range(len(contours[0])):
+            ACont = contours[0][i] - A
             norme_ACont1.append(np.linalg.norm(ACont))
-            if norme_ACont1 == 504.9831680363218:
-                cv2.circle(test, tuple(contours[i]), 10, (255, 0, 0), -1)
+            """ if norme_ACont1 == 504.9831680363218:
+                cv2.circle(test, tuple(contours[0][i]), 10, (255, 0, 0), -1)
                 cv2.dilate(test, None)
-                """ cv2.imshow("Angle droit", test)
+                cv2.imshow("Angle droit", test)
                 cv2.waitKey(0)
                 cv2.destroyAllWindows() """
-            if np.any(contours[i] == A):
+            if np.any(contours[0][i] == A):
                 if i < 10:
-                    C = contours[len(contours) - 10 + i]
-                elif i > len(contours) - 10:
-                    B = contours[10 - len(contours) + i]
+                    B = contours[0][i + 10]
+                    C = contours[0][len(contours[0]) - 10 + i]
+                elif i > len(contours[0]) - 10 or i + 10 == len(contours[0]):
+                    B = contours[0][10 - len(contours[0]) + i]
+                    C = contours[0][i - 10]
                 else:
-                    B = contours[i + 10]
-                    C = contours[i - 10]
+                    B = contours[0][i + 10]
+                    C = contours[0][i - 10]
 
-                print("B:", B)
-                print("C:", C)
+                """ print("B:", B)
+                print("C:", C) """
 
         """ C = coordonnate[0]
         coordonnate = np.delete(coordonnate, 0, axis=0)
@@ -305,7 +307,7 @@ def corner_detection(image, yx, contours):
 
             if abs(angle_degre - 90) < tolerance:
                 angle_droit.append(A) """
-    print("Norme ACont min:", min(norme_ACont1))
+    # print("Norme ACont min:", min(norme_ACont1))
 
     # print("Angle droit:", angle_droit)
     """ for point in angle_droit:
@@ -329,6 +331,8 @@ cropped_image, image_crop = draw_bounding_boxes_and_centroids(
 )
 for i in range(len(image_crop)):
     thresh_crop, gray_crop = second_process(image_crop[i], thresh_crop, gray_crop)
+    # print(thresh_crop)
+
     detected_img, contours_crop = detect_contours(
         image_crop[i], thresh_crop, contours_crop
     )
@@ -347,7 +351,6 @@ for i in range(len(image_crop)):
         yx,
         file_name,
     )
-
 
 # corner_detection(image_crop[9], yx)
 
