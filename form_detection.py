@@ -252,10 +252,10 @@ def prepare_piece_library():
             print("Failed to delete %s. Reason: %s" % (file_path, e))
 
 
-def corner_detection(image, yx, contours):
+def corner_detection(image, yx, contours, numLabels):
     """Detect corners in the image."""
     moitie = yx.shape[0] // 2
-    angle_droit = []
+    angle_droit = set()
     tolerance = 1e-2  # Tolérance pour la comparaison d'angle
     segment_len = 0
     norme_ACont1 = []
@@ -264,6 +264,7 @@ def corner_detection(image, yx, contours):
     for j in range(len(yx)):
         A = yx[j]
         for i in range(len(contours[0])):
+            # print(f"yx: {j}, contours: {i}")
             ACont = contours[0][i] - A
             norme_ACont1.append(np.linalg.norm(ACont))
             """ if norme_ACont1 == 504.9831680363218:
@@ -282,37 +283,45 @@ def corner_detection(image, yx, contours):
                 else:
                     B = contours[0][i + 10]
                     C = contours[0][i - 10]
+                if B is not None and C is not None:
+                    """print("A:", A)
+                    print("B:", B)
+                    print("C:", C)"""
 
-                """ print("B:", B)
-                print("C:", C) """
+                    AB = np.array(B) - np.array(A)
+                    AC = np.array(C) - np.array(A)
 
-        """ C = coordonnate[0]
-        coordonnate = np.delete(coordonnate, 0, axis=0)
-        if np.any(A != C) and np.any(B != C):
-            AB = B - A
-            AC = C - A
+                    """ print("AB:", AB)
+                    print("AC:", AC) """
 
-            norme_AB = np.linalg.norm(AB)
-            norme_AC = np.linalg.norm(AC)
+                    AB = AB.flatten()
+                    AC = AC.flatten()
 
-            if norme_AB == 0 or norme_AC == 0:
-                continue  # Éviter la division par zéro
+                    """ print("AB post flatten:", AB)
+                    print("AC post flatten:", AC) """
 
-            produit_scalaire = np.dot(AB, AC)
+                    norme_AB = np.linalg.norm(AB)
+                    norme_AC = np.linalg.norm(AC)
 
-            angle_radiant = np.arccos(
-                produit_scalaire / (norme_AB * norme_AC)
-            )
-            angle_degre = np.degrees(angle_radiant)
+                    if norme_AB == 0 or norme_AC == 0:
+                        continue  # Éviter la division par zéro
 
-            if abs(angle_degre - 90) < tolerance:
-                angle_droit.append(A) """
+                    produit_scalaire = AB @ AC
+
+                    angle_radiant = np.arccos(produit_scalaire / (norme_AB * norme_AC))
+                    angle_degre = np.degrees(angle_radiant)
+
+                    if abs(angle_degre - 90) < tolerance:
+                        angle_droit.add(tuple(A))
     # print("Norme ACont min:", min(norme_ACont1))
-
-    # print("Angle droit:", angle_droit)
-    """ for point in angle_droit:
+    print(f"yx len: {len(yx)}")
+    print(f"contours len: {len(contours[0])}")
+    for point in angle_droit:
         print("Angle droit:", point)
-        cv2.circle(image, tuple(point), 5, (0, 255, 0), -1) """
+        cv2.circle(image, tuple(point), 5, (0, 255, 0), -1)
+    cv2.imshow("Angle droit", image)
+    cv2.imwrite(f"corner_detection/Angle_droit{numLabels}.jpg", image)
+    cv2.waitKey(0)
 
 
 # Main execution
@@ -341,7 +350,7 @@ for i in range(len(image_crop)):
     corner.append(corner_detected)
 
     # print(contours[5])
-    corner_detection(image_crop[i].copy(), yx, contours_crop)
+    corner_detection(image_crop[i].copy(), yx, contours_crop, i)
 
     preserved_points, preserved_points_img = preserve_points(
         img,
