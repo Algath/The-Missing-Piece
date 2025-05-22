@@ -1,0 +1,17 @@
+Image number: 0
+Angle droit: (163, 31)
+Angle droit: (163, 33)
+Image number: 1
+Angle droit: (169, 35)
+Image number: 2
+Angle droit: (153, 42)
+Image number: 3
+Angle droit: (156, 62)
+Image number: 4
+Image number: 5
+Angle droit: (118, 34)
+Image number: 6
+Image number: 7
+Angle droit: (203, 93)
+Image number: 8
+Angle droit: (84, 53)

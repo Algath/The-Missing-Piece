@@ -264,64 +264,108 @@ def corner_detection(image, yx, contours, numLabels):
     for j in range(len(yx)):
         A = yx[j]
         for i in range(len(contours[0])):
-            # print(f"yx: {j}, contours: {i}")
+            """# print(f"yx: {j}, contours: {i}")
             ACont = contours[0][i] - A
             norme_ACont1.append(np.linalg.norm(ACont))
-            """ if norme_ACont1 == 504.9831680363218:
+            if norme_ACont1 == 504.9831680363218:
                 cv2.circle(test, tuple(contours[0][i]), 10, (255, 0, 0), -1)
                 cv2.dilate(test, None)
                 cv2.imshow("Angle droit", test)
                 cv2.waitKey(0)
-                cv2.destroyAllWindows() """
-            if np.any(contours[0][i] == A):
-                if i < 10:
-                    B = contours[0][i + 10]
-                    C = contours[0][len(contours[0]) - 10 + i]
-                elif i > len(contours[0]) - 10 or i + 10 == len(contours[0]):
-                    B = contours[0][10 - len(contours[0]) + i]
-                    C = contours[0][i - 10]
-                else:
-                    B = contours[0][i + 10]
-                    C = contours[0][i - 10]
-                if B is not None and C is not None:
-                    """print("A:", A)
-                    print("B:", B)
-                    print("C:", C)"""
+                cv2.destroyAllWindows()"""
+            if np.any(contours[0][i] != A) and i < len(contours[0]) - 1:
+                # Projection orhogonale du point A sur le contour
+                A = projection_orthogonale(A, contours[0][i], contours[0][i + 1])
+            # np.any(contours[0][i] == A):
+            if i < 10:
+                B = contours[0][i + 10]
+                C = contours[0][len(contours[0]) - 10 + i]
+            elif i > len(contours[0]) - 10 or i + 10 == len(contours[0]):
+                B = contours[0][10 - len(contours[0]) + i]
+                C = contours[0][i - 10]
+            else:
+                B = contours[0][i + 10]
+                C = contours[0][i - 10]
+            if B is not None and C is not None:
+                """print("A:", A)
+                print("B:", B)
+                print("C:", C)"""
 
-                    AB = np.array(B) - np.array(A)
-                    AC = np.array(C) - np.array(A)
+                AB = np.array(B) - np.array(A)
+                AC = np.array(C) - np.array(A)
 
-                    """ print("AB:", AB)
-                    print("AC:", AC) """
+                """ print("AB:", AB)
+                print("AC:", AC) """
 
-                    AB = AB.flatten()
-                    AC = AC.flatten()
+                AB = AB.flatten()
+                AC = AC.flatten()
 
-                    """ print("AB post flatten:", AB)
-                    print("AC post flatten:", AC) """
+                """ print("AB post flatten:", AB)
+                print("AC post flatten:", AC) """
 
-                    norme_AB = np.linalg.norm(AB)
-                    norme_AC = np.linalg.norm(AC)
+                norme_AB = np.linalg.norm(AB)
+                norme_AC = np.linalg.norm(AC)
 
-                    if norme_AB == 0 or norme_AC == 0:
-                        continue  # Éviter la division par zéro
+                if norme_AB == 0 or norme_AC == 0:
+                    continue  # Éviter la division par zéro
 
-                    produit_scalaire = AB @ AC
+                produit_scalaire = AB @ AC
 
-                    angle_radiant = np.arccos(produit_scalaire / (norme_AB * norme_AC))
-                    angle_degre = np.degrees(angle_radiant)
+                angle_radiant = np.arccos(produit_scalaire / (norme_AB * norme_AC))
+                angle_degre = np.degrees(angle_radiant)
 
-                    if abs(angle_degre - 90) < tolerance:
-                        angle_droit.add(tuple(A))
+                if abs(angle_degre - 90) < tolerance:
+                    angle_droit.add(tuple(A))
     # print("Norme ACont min:", min(norme_ACont1))
     print(f"yx len: {len(yx)}")
     print(f"contours len: {len(contours[0])}")
+    print("Image number:", numLabels)
     for point in angle_droit:
         print("Angle droit:", point)
         cv2.circle(image, tuple(point), 5, (0, 255, 0), -1)
-    cv2.imshow("Angle droit", image)
+    """ cv2.imshow("Angle droit", image)
     cv2.imwrite(f"corner_detection/Angle_droit{numLabels}.jpg", image)
-    cv2.waitKey(0)
+    cv2.waitKey(0) """
+    with open("corner_detection/angle_droit-new_version.txt", "a") as f:
+        f.write(f"Image number: {numLabels}\n")
+        for point in angle_droit:
+            f.write(f"Angle droit: {point}\n")
+
+
+def projection_orthogonale(A, contour1, contour2):
+    """Calculate the orthogonal projection of point A onto line BC."""
+    A = np.array(A)
+    min_ditance = float("inf")
+    projection = None
+
+    P1 = np.array(contour1).squeeze()
+    P2 = np.array(contour2).squeeze()
+
+    segment = P2 - P1
+    segment_length_squared = np.dot(segment, segment)
+
+    if segment_length_squared == 0:
+        distance = np.linalg.norm(A - P1)
+        if distance < min_ditance:
+            min_ditance = distance
+            projection = P1
+
+    t = np.dot(A - P1, segment) / segment_length_squared
+    if 0 <= t <= 1:
+        P_prime = P1 + t * segment
+    else:
+        distance_to_P1 = np.linalg.norm(A - P1)
+        distance_to_P2 = np.linalg.norm(A - P2)
+        if distance_to_P1 < distance_to_P2:
+            P_prime = P1
+        else:
+            P_prime = P2
+
+    distance = np.linalg.norm(A - P_prime)
+    if distance < min_ditance:
+        min_ditance = distance
+        projection = P_prime
+    return projection
 
 
 # Main execution
